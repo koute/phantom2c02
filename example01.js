@@ -12,7 +12,6 @@ function repeat( times, callback ) {
 
 phantom2c02.create( function( ctx ) {
     ctx.queue_cpu_write( ppumask().set_show_background( true ).set_show_sprites( true ) );
-    ctx.queue_cpu_read( ppumask );
 
     ctx.step_scanline();
 
