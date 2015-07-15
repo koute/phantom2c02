@@ -1,6 +1,59 @@
 "use strict";
 
 var _ = require( "./lib/lodash" );
+var sprintf = require( "./lib/sprintf" ).sprintf;
+
+function repeat( times, callback ) {
+    for( var i = 0; i < times; ++i ) {
+        callback( i );
+    }
+}
+
+function assert_range( min, max, value, name ) {
+    if( !_.isUndefined( name ) ) {
+        name = " '" + name + "'";
+    }
+
+    if( !_.isNumber( value ) ) {
+        throw new Error( "Argument" + name + " not a number" );
+    }
+
+    if( value < min || value > max ) {
+        throw new Error( "Argument" + name + " out of range: " + value );
+    }
+}
+
+function assert_bool( value, name ) {
+    if( !_.isUndefined( name ) ) {
+        name = " '" + name + "'";
+    }
+
+    if( !_.isBoolean( value ) ) {
+        throw new Error( "Argument" + name + " not a bool" );
+    }
+}
+
+function assert_array( value, name ) {
+    if( !_.isUndefined( name ) ) {
+        name = " '" + name + "'";
+    }
+
+    if( !_.isArray( value ) ) {
+        throw new Error( "Argument" + name + " not an array" );
+    }
+}
+
+phantom.onError = function( message, trace ) {
+    var message_stack = ["PHANTOM ERROR: " + message];
+    if( trace && trace.length ) {
+        message_stack.push( "TRACE:" );
+        _.each( trace, function( entry ) {
+            message_stack.push(' -> ' + (entry.file || entry.sourceURL) + ': ' + entry.line + (entry.function ? ' (in function ' + entry.function + ')' : ''));
+        });
+    }
+    console.log( message_stack.join( "\n" ) );
+    phantom.exit( 1 );
+};
 
 function create( callback ) {
     var page = require( "webpage" ).create();
@@ -21,12 +74,16 @@ function create( callback ) {
             page.evaluate( function() {
                 goPixel();
             });
+
+            self.on_step_pixel_called();
         },
 
         step_scanline: function() {
             page.evaluate( function() {
                 goScanline();
-            })
+            });
+
+            self.on_step_scanline_called();
         },
 
         reset: function() {
@@ -49,66 +106,80 @@ function create( callback ) {
         },
 
         read_oam: function( offset ) {
-            if( offset > 0xFF || offset < 0 ) {
-                throw new Error( "Offset out of range: " + offset );
-            }
+            assert_range( 0, 0xFF, offset, "offset" );
+
             return page.evaluate( function( offset ) {
                 return sprite_read( offset );
             }, offset );
         },
 
         write_oam: function( offset, value ) {
-            if( offset > 0xFF || offset < 0 ) {
-                throw new Error( "Offset out of range: " + offset );
-            }
-            if( _.isUndefined( value ) ) {
-                throw new Error( "Value is undefined" );
-            }
-            return page.evaluate( function( offset, value ) {
+            assert_range( 0, 0xFF, offset, "offset" );
+            assert_range( 0, 0xFF, value, "value" );
+
+            page.evaluate( function( offset, value ) {
                 sprite_write( offset, value );
             }, offset, value );
+
+            self.on_write_oam_called( offset, value );
+        },
+
+        write_sprite_to_oam: function( n_sprite, value ) {
+            assert_range( 0, 7, n_sprite, "n_sprite" );
+            assert_array( sprite, "value" );
+            assert_range( 4, 4, value.length, "value.length" );
+
+            repeat( 4, function( offset ) {
+                self.write_oam( n_sprite * 4 + offset, value[offset] );
+            });
         },
 
         read_secondary_oam: function( offset ) {
-            if( offset > 32 || offset < 0 ) {
-                throw new Error( "Offset out of range: " + offset );
-            }
+            assert_range( 0, 32, offset, "offset" );
+
             return page.evaluate( function( offset ) {
                 return sprite_read( 0x100 + offset );
             }, offset );
         },
 
         write_secondary_oam: function( offset, value ) {
-            if( offset > 32 || offset < 0 ) {
-                throw new Error( "Offset out of range: " + offset );
-            }
-            if( _.isUndefined( value ) ) {
-                throw new Error( "Value is undefined" );
-            }
-            return page.evaluate( function( offset, value ) {
+            assert_range( 0, 32, offset, "offset" );
+            assert_range( 0, 0xFF, value, "value" );
+
+            page.evaluate( function( offset, value ) {
                 sprite_write( 0x100 + offset, value );
             }, offset, value );
+
+            self.on_write_secondary_oam_called( offset, value );
+        },
+
+        write_sprite_to_secondary_oam: function( n_sprite, value ) {
+            assert_range( 0, 7, n_sprite, "n_sprite" );
+            assert_array( value, "value" );
+            assert_range( 4, 4, value.length, "value.length" );
+
+            repeat( 4, function( offset ) {
+                self.write_secondary_oam( n_sprite * 4 + offset, value[offset] );
+            });
         },
 
         read_palette_ram: function( offset ) {
-            if( offset > 32 || offset < 0 ) {
-                throw new Error( "Offset out of range: " + offset );
-            }
+            assert_range( 0, 32, offset, "offset" );
+
             return page.evaluate( function( offset ) {
                 return palette_read( offset );
             }, offset );
         },
 
         write_palette_ram: function( offset, value ) {
-            if( offset > 32 || offset < 0 ) {
-                throw new Error( "Offset out of range: " + offset );
-            }
-            if( _.isUndefined( value ) ) {
-                throw new Error( "Value is undefined" );
-            }
-            return page.evaluate( function( offset, value ) {
+            assert_range( 0, 32, offset, "offset" );
+            assert_range( 0, 0xFF, value, "value" );
+
+            page.evaluate( function( offset, value ) {
                 palette_write( offset, value );
             }, offset, value );
+
+            self.on_write_palette_ram_called( offset, value );
         },
 
         read_vram: function( offset ) {
@@ -118,9 +189,14 @@ function create( callback ) {
         },
 
         write_vram: function( address, value ) {
-            return page.evaluate( function( address, value ) {
+            assert_range( 0, 0x3FFF, address, "address" );
+            assert_range( 0, 0xFF, value, "value" );
+
+            page.evaluate( function( address, value ) {
                 mWrite( address, value );
             }, address, value );
+
+            self.on_write_vram_called( address, value );
         },
 
         dump_oam: function() {
@@ -168,15 +244,15 @@ function create( callback ) {
         },
 
         get_scanline: function() {
-            return page.evaluate( function() {
-                return readBits( "vpos", 9 );
-            });
+            return self.read_bits( "vpos" );
         },
 
         get_dot: function() {
-            return page.evaluate( function() {
-                return readBits( "hpos", 9 );
-            });
+            return self.read_bits( "hpos" );
+        },
+
+        get_position: function() {
+            return position( self.get_scanline(), self.get_dot() );
         },
 
         get_address_bus: function() {
@@ -185,19 +261,69 @@ function create( callback ) {
             });
         },
 
+        get_data_bus: function() {
+            return page.evaluate( function() {
+                return readDataBus();
+            });
+        },
+
+        read_bits: function( node_name ) {
+            return page.evaluate( function( node_name ) {
+                if( nodenames[ node_name + "0" ] === undefined ) {
+                    return readBit( node_name );
+                }
+
+                var bit_count = 0;
+                while( nodenames[ node_name + (bit_count + 1) ] != undefined ) {
+                    bit_count += 1;
+                }
+
+                return readBits( node_name, bit_count + 1 );
+            }, node_name );
+        },
+
+        is_reading_from_vram: function() {
+            return self.read_bits( "rd" ) === 0;
+        },
+
+        is_writing_to_vram: function() {
+            return self.read_bits( "wr" ) === 0;
+        },
+
+        resolve_io_port: function() {
+            if( arguments.length !== 1 && arguments.length !== 2 ) {
+                throw new Error( "Invalid argument count" );
+            }
+
+            var obj = arguments[0];
+            if( obj === ppumask ) {
+                obj = ppumask();
+            }
+
+            if( !_.isObject( obj ) ) {
+                obj = {
+                    address: arguments[0]
+                }
+            }
+
+            if( arguments.length === 2 && !_.isUndefined( arguments[1] ) ) {
+                obj.value = arguments[1];
+            }
+
+            if( obj.address < 0x2000 || obj.address > 0x3FFF ) {
+                throw new Error( "Address out of range: " + obj.address );
+            }
+
+            if( !_.isUndefined( obj.value ) && obj.value < 0 || obj.value > 255 ) {
+                throw new Error( "Value out of range: " + obj.value );
+            }
+
+            obj.address = 0x2000 + (obj.address & (8 - 1));
+            return obj;
+        },
+
         queue_cpu_read: function( address, callback ) {
-            if( address === ppumask ) {
-                address = ppumask();
-            }
-
-            if( _.isObject( address ) && !_.isUndefined( address.address ) ) {
-                address = address.address;
-            }
-
-            if( address < 0x2000 || address > 0x3FFF ) {
-                throw new Error( "Address out of range: " + address );
-            }
-            address = address & (8 - 1);
+            address = self.resolve_io_port( address ).address;
 
             var callback_id = null;
             if( !_.isUndefined( callback ) ) {
@@ -212,34 +338,52 @@ function create( callback ) {
         },
 
         queue_cpu_write: function( address, value ) {
-            if( address === ppumask ) {
-                address = ppumask();
-            }
+            var obj = self.resolve_io_port( address, value );
 
-            if( _.isObject( address ) && !_.isUndefined( address.address ) && !_.isUndefined( address.value ) ) {
-                value = address.value;
-                address = address.address;
-            }
-
-            if( address < 0x2000 || address > 0x3FFF ) {
-                throw new Error( "Address out of range: " + address );
-            }
-
-            address = address & (8 - 1);
-
-            if( _.isObject( value ) && value.value ) {
-                value = value;
-            }
-
-            if( value < 0 || value > 0xFF ) {
-                throw new Error( "Value out of range: " + value );
-            }
-
-            return page.evaluate( function( address, value ) {
+            page.evaluate( function( address, value ) {
                 var entry = value | (address << 8) | 0x2000;
                 queue_cpu_action( entry );
-            }, address, value );
-        }
+            }, obj.address, obj.value );
+
+            self.on_cpu_write_called( obj.address, obj.value );
+        },
+
+        cpu_write_and_step: function( address, value ) {
+            self.queue_cpu_write( address, value );
+            return self.step_until_one_cpu_operation_is_executed();
+        },
+
+        step_until_one_cpu_operation_is_executed: function() {
+            var get_address = function() {
+                return page.evaluate( function() { return testprogramAddress; } );
+            };
+            var length = page.evaluate( function() { return testprogram.length } );
+            var initial_address = get_address();
+            var count = 0;
+
+            while( true ) {
+                var address = get_address();
+
+                if( address == (length - 1) || address == (initial_address + 1) ) {
+                    break;
+                }
+
+                self.step_pixel();
+                count += 1;
+            }
+
+            return count;
+        },
+
+        on_write_vram_called: function( address, value ) {},
+        on_write_palette_ram_called: function( offset, value ) {},
+        on_write_oam_called: function( offset, value ) {},
+        on_write_secondary_oam_called: function( offset, value ) {},
+        on_cpu_write_called: function( address, value ) {},
+        on_step_pixel_called: function() {},
+        on_step_scanline_called: function() {},
+
+        repeat: repeat
     };
 
     page.onConsoleMessage = function( message ) {
@@ -355,5 +499,107 @@ function ppumask( value ) {
     return obj;
 }
 
+function sprite( args ) {
+    var x = null,
+        y = null,
+        tile = null,
+        palette = 0,
+        flip_h = false,
+        flip_v = false,
+        low_priority = false;
+
+    _.each( args, function( value, key ) {
+        if( key === "x" ) {
+            assert_range( 0, 0xFF, value, key );
+            x = value;
+        } else if( key === "y" ) {
+            assert_range( 0, 0xFF, value, key );
+            y = value;
+        } else if( key === "tile" ) {
+            assert_range( 0, 0xFF, value, key );
+            tile = value;
+        } else if( key === "palette" ) {
+            assert_range( 0, 3, value, key );
+            palette = value;
+        } else if( key === "flip_h" ) {
+            assert_bool( value, key );
+            flip_h = value;
+        } else if( key === "flip_v" ) {
+            assert_bool( value, key );
+            flip_v = value;
+        } else if( key === "low_priority" || key === "display_behind_background" ) {
+            assert_bool( value, key );
+            low_priority = value;
+        } else {
+            throw new Error( "Unknown argument key: '" + key + "' (value=" + JSON.stringify( value ) + ")" );
+        }
+    });
+
+    if( _.isUndefined( x ) ) {
+        throw new Error( "Missing 'x'" );
+    }
+
+    if( _.isUndefined( y ) ) {
+        throw new Error( "Missing 'y'" );
+    }
+
+    if( _.isUndefined( tile ) ) {
+        throw new Error( "Missing 'tile'" );
+    }
+
+    var attributes = palette;
+    if( flip_h === true ) {
+        attributes |= 1 << 6;
+    }
+
+    if( flip_v === true ) {
+        attributes |= 1 << 7;
+    }
+
+    if( low_priority === true ) {
+        attributes |= 1 << 5;
+    }
+
+    return [y, tile, attributes, x];
+}
+
+function position( scanline, dot ) {
+    var self = {
+        scanline: scanline,
+        dot: dot,
+
+        add: function( difference ) {
+            var scanline = self.scanline;
+            var dot = self.dot;
+
+            dot += difference;
+            if( dot < 0 ) {
+                scanline -= 1;
+                dot = 340;
+                if( scanline < 0 ) {
+                    scanline = 261;
+                }
+            } else if( dot > 340 ) {
+                scanline += 1;
+                dot = 0;
+                if( scanline > 262 ) {
+                    scanline = 0;
+                }
+            }
+
+            return position( scanline, dot );
+        },
+
+        toString: function() {
+            return sprintf( "%03i %03i", self.scanline, self.dot );
+        }
+    };
+
+    return self;
+}
+
 module.exports.create = create;
 module.exports.ppumask = ppumask;
+module.exports.sprite = sprite;
+module.exports.repeat = repeat;
+module.exports.position = position;

@@ -52,6 +52,9 @@ to allow easy and fully automated simulation through [PhantomJS](http://phantomj
 ##### `.write_vram( address, value )`
 <hr>
 
+##### `.read_bits( node_name )` -> `Number`
+<hr>
+
 ##### `.dump_oam()` -> `[256]`
 <hr>
 
@@ -71,6 +74,15 @@ to allow easy and fully automated simulation through [PhantomJS](http://phantomj
 <hr>
 
 ##### `.get_address_bus()` -> `u16`
+<hr>
+
+##### `.get_data_bus()` -> `u8`
+<hr>
+
+##### `.is_reading_from_vram()` -> `bool`
+<hr>
+
+##### `.is_writing_to_vram()` -> `bool`
 <hr>
 
 ##### `.queue_cpu_read( address, [callback] )`
