@@ -441,7 +441,7 @@ function create( callback ) {
         });
     };
 
-    page.open( "visual2c02/index.html", function( status ) {
+    page.open( module.dirname + "/visual2c02/index.html", function( status ) {
         if( status !== "success" ) {
             console.log( "INTERNAL ERROR: Page load failed!" );
             phantom.exit();
