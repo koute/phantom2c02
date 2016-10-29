@@ -79,6 +79,9 @@ to allow easy and fully automated simulation through [PhantomJS](http://phantomj
 ##### `.get_data_bus()` -> `u8`
 <hr>
 
+##### `.get_current_address()` -> `u16`
+<hr>
+
 ##### `.is_reading_from_vram()` -> `bool`
 <hr>
 

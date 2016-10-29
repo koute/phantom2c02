@@ -267,6 +267,10 @@ function create( callback ) {
             });
         },
 
+        get_current_address: function() {
+            return self.read_bits( "vramaddr_v" );
+        },
+
         read_bits: function( node_name ) {
             return page.evaluate( function( node_name ) {
                 if( nodenames[ node_name + "0" ] === undefined ) {
