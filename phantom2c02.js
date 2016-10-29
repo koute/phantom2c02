@@ -302,6 +302,8 @@ function create( callback ) {
             var obj = arguments[0];
             if( obj === ppumask ) {
                 obj = ppumask();
+            } else if( obj == ppuctrl ) {
+                obj = ppuctrl();
             }
 
             if( !_.isObject( obj ) ) {
@@ -503,6 +505,28 @@ function ppumask( value ) {
     return obj;
 }
 
+function ppuctrl( value ) {
+    var obj = { address: 0x2000, value: value };
+    obj.base_background_tilemap = function() {
+        return obj.value & 3;
+    };
+
+    obj.set_base_background_tilemap = function( value ) {
+        assert_range( 0, 3, value, "base_background_tilemap" );
+        obj.value = (obj.value & (~3)) | (value & 3);
+        return obj;
+    };
+
+    accessor( obj, 2, "increment_vram_address_by_32" );
+    accessor( obj, 3, "use_second_pattern_table_for_sprites" );
+    accessor( obj, 4, "use_second_pattern_table_for_background" );
+    accessor( obj, 5, "double_height_sprite_mode" );
+    accessor( obj, 6, "slave_mode" );
+    accessor( obj, 7, "should_generate_vblank_nmi" );
+
+    return obj;
+}
+
 function sprite( args ) {
     var x = null,
         y = null,
@@ -604,6 +628,7 @@ function position( scanline, dot ) {
 
 module.exports.create = create;
 module.exports.ppumask = ppumask;
+module.exports.ppuctrl = ppuctrl;
 module.exports.sprite = sprite;
 module.exports.repeat = repeat;
 module.exports.position = position;

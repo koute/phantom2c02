@@ -17,6 +17,9 @@ to allow easy and fully automated simulation through [PhantomJS](http://phantomj
 ##### `ppumask( [value] )` -> `{...}`
 <hr>
 
+##### `ppuctrl( [value] )` -> `{...}`
+<hr>
+
 ### Context
 
 ##### `.step_pixel()`
