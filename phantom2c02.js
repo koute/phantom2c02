@@ -271,6 +271,10 @@ function create( callback ) {
             return self.read_bits( "vramaddr_v" );
         },
 
+        get_temporary_address: function() {
+            return self.read_bits( "_vramaddr_t" );
+        },
+
         read_bits: function( node_name ) {
             return page.evaluate( function( node_name ) {
                 if( nodenames[ node_name + "0" ] === undefined ) {

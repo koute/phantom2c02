@@ -85,6 +85,9 @@ to allow easy and fully automated simulation through [PhantomJS](http://phantomj
 ##### `.get_current_address()` -> `u16`
 <hr>
 
+##### `.get_temporary_address()` -> `u16`
+<hr>
+
 ##### `.is_reading_from_vram()` -> `bool`
 <hr>
 
