@@ -5,7 +5,7 @@ to allow easy and fully automated simulation through [PhantomJS](http://phantomj
 
 # Usage
 
-`phantomjs example01.js`
+`OPENSSL_CONF=/etc/ssl phantomjs example01.js`
 
 # API reference
 
